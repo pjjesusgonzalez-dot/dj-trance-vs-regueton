@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#09051a">
+<title>DJ Trance vs DJ Reguetón</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05030d;color:#fff;font-family:system-ui,Arial,sans-serif;touch-action:none}
+body{display:flex;align-items:center;justify-content:center}
+#app{position:relative;width:100vw;height:100dvh;overflow:hidden;background:#09051a}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#hud{position:absolute;top:env(safe-area-inset-top,0);left:0;right:0;height:64px;display:flex;align-items:center;gap:10px;padding:8px 12px;background:linear-gradient(#05030dcc,#05030d44);pointer-events:none}
+.badge{background:#10152ccc;border:1px solid #38cfff;border-radius:12px;padding:7px 10px;font-weight:800;font-size:13px;white-space:nowrap}
+#title{font-size:18px;color:#55dfff;letter-spacing:.5px}
+#bossbar{position:absolute;top:72px;left:12%;right:12%;height:18px;border:2px solid #ff4aa8;border-radius:20px;background:#160719;display:none;overflow:hidden}
+#bossfill{height:100%;width:100%;background:#ff2d9b}
+#bosslabel{position:absolute;top:92px;left:0;right:0;text-align:center;font-weight:900;font-size:13px;text-shadow:0 2px 4px #000}
+#message{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;pointer-events:none}
+.panel{background:#05030de8;border:2px solid #38cfff;border-radius:24px;padding:28px;max-width:88%;box-shadow:0 0 35px #1fcfff55}
+.panel h1{margin:0 0 10px;font-size:clamp(30px,8vw,60px);color:#57dcff}
+.panel p{margin:8px 0;font-size:17px}.panel small{opacity:.75}
+#controls{position:absolute;left:0;right:0;bottom:0;height:42%;min-height:220px;pointer-events:none}
+#stick{position:absolute;left:max(20px,env(safe-area-inset-left));bottom:max(20px,env(safe-area-inset-bottom));width:min(34vw,150px);height:min(34vw,150px);max-width:150px;max-height:150px;border-radius:50%;background:#14204dcc;border:2px solid #51dcff66;box-shadow:inset 0 0 30px #000,0 0 18px #35c8ff33;pointer-events:auto}
+#knob{position:absolute;width:42%;height:42%;left:29%;top:29%;border-radius:50%;background:#238dcc;border:2px solid #9ff2ff;box-shadow:0 0 18px #27d5ff;transform:translate(0,0)}
+.action{position:absolute;bottom:max(24px,env(safe-area-inset-bottom));border-radius:50%;width:min(22vw,94px);height:min(22vw,94px);max-width:94px;max-height:94px;pointer-events:auto;border:2px solid #fff;background:#7b1268dd;color:#fff;font-size:clamp(25px,7vw,38px);font-weight:900;box-shadow:0 0 25px #ff39ae55}
+#fire{right:max(22px,env(safe-area-inset-right));background:#1472bddd;border-color:#8cecff}
+#special{right:calc(max(22px,env(safe-area-inset-right)) + min(22vw,94px) + 12px);background:#7420a9dd}
+#pause{right:12px;top:74px;bottom:auto;width:48px;height:48px;font-size:20px;background:#111b35cc}
+#controls button:active,#stick:active{transform:scale(.94)}
+#rotate{display:none}
+@media (orientation:landscape) and (max-height:520px){
+ #controls{height:48%;min-height:150px}
+ #stick{width:120px;height:120px}
+ .action{width:76px;height:76px}
+ #special{right:112px}
+}
+@media (max-width:380px){
+ .badge{font-size:11px;padding:6px 7px} #title{font-size:15px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+<canvas id="game"></canvas>
+<div id="hud">
+  <div class="badge" id="title">DJ TRANCE</div>
+  <div class="badge">❤️ <span id="lives">3</span></div>
+  <div class="badge">⭐ <span id="score">000000</span></div>
+  <div class="badge">💿 <span id="discs">12</span></div>
+  <div class="badge">NIVEL <span id="level">1</span></div>
+</div>
+<div id="bossbar"><div id="bossfill"></div></div><div id="bosslabel"></div>
+<div id="message"><div class="panel" id="panel">
+  <h1>DJ TRANCE</h1><p>VS DJ REGUETÓN</p><p>🦸‍♂️ Salva el mundo con tus discos de vinilo.</p><small>Toca la pantalla para empezar</small>
+</div></div>
+<div id="controls">
+  <div id="stick"><div id="knob"></div></div>
+  <button class="action" id="special" aria-label="Poder especial">⚡</button>
+  <button class="action" id="fire" aria-label="Lanzar vinilo">💿</button>
+  <button class="action" id="pause" aria-label="Pausa">Ⅱ</button>
+</div>
+</div>
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=innerWidth,H=innerHeight,D=devicePixelRatio||1;
+function resize(){W=innerWidth;H=innerHeight;D=Math.min(devicePixelRatio||1,2);canvas.width=W*D;canvas.height=H*D;ctx.setTransform(D,0,0,D,0,0)}
+addEventListener('resize',resize);resize();
+
+let state='menu',score=0,lives=3,level=1,discs=12,spawn=0,shots=[],enemies=[],particles=[],boss=null,special=100;
+const p={x:140,y:0,inv:0};
+function ground(){return H*.77}
+function reset(){state='play';score=0;lives=3;level=1;discs=12;spawn=0;shots=[];enemies=[];particles=[];boss=null;special=100;p.x=140;p.inv=0;msg(false)}
+function msg(show,title='DJ TRANCE',sub='VS DJ REGUETÓN',body='🦸‍♂️ Salva el mundo con tus discos de vinilo.'){
+ $('message').style.display=show?'flex':'none';if(show){$('panel').innerHTML=`<h1>${title}</h1><p>${sub}</p><p>${body}</p><small>Toca para continuar</small>`}}
+$('message').addEventListener('pointerdown',()=>{if(state==='menu'||state==='gameover'||state==='win'){reset()}else if(state==='pause'){state='play';msg(false)}});
+function shoot(){if(state!=='play'||discs<=0)return;discs--;shots.push({x:p.x+38,y:p.y-40,v:W*.014,r:15,a:0});}
+function specialAttack(){if(state!=='play'||special<100)return;special=0;score+=250;for(const e of enemies)e.hp=0; if(boss)boss.hp=Math.max(0,boss.hp-7);burst(p.x,p.y,35)}
+function burst(x,y,n=10){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8,life:30+Math.random()*35,r:2+Math.random()*4})}
+function spawnEnemy(){let fast=Math.random()<.25;enemies.push({x:W+60,y:ground()-60-Math.random()*H*.16,w:48,h:62,v:(fast?1.8:1.1)*Math.min(W/700,1.6)*(1+level*.12),hp:fast?2:1,fast})}
+function startBoss(){boss={x:W*.76,y:H*.25,w:140,h:150,hp:40,max:40,v:W*.003,dir:1};enemies=[]}
+function hit(){if(p.inv>0)return;lives--;p.inv=80;burst(p.x,p.y,18);if(lives<=0){state='gameover';msg(true,'GAME OVER','','DJ Reguetón ha conquistado las ondas.')}}
+
+let joy={x:0,y:0,active:false,id:null};
+const stick=$('stick'),knob=$('knob');
+function joyMove(e){let r=stick.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dx=e.clientX-cx,dy=e.clientY-cy,max=r.width*.29,len=Math.hypot(dx,dy);if(len>max){dx*=max/len;dy*=max/len}joy.x=dx/max;joy.y=dy/max;knob.style.transform=`translate(${dx}px,${dy}px)`}
+stick.addEventListener('pointerdown',e=>{e.preventDefault();joy.active=true;joy.id=e.pointerId;stick.setPointerCapture(e.pointerId);joyMove(e)});
+stick.addEventListener('pointermove',e=>{if(joy.active&&e.pointerId===joy.id)joyMove(e)});
+stick.addEventListener('pointerup',e=>{if(e.pointerId===joy.id){joy.active=false;joy.x=joy.y=0;knob.style.transform='translate(0,0)'}});
+stick.addEventListener('pointercancel',()=>{joy.active=false;joy.x=joy.y=0;knob.style.transform='translate(0,0)'});
+$('fire').addEventListener('pointerdown',e=>{e.preventDefault();shoot()});
+$('special').addEventListener('pointerdown',e=>{e.preventDefault();specialAttack()});
+$('pause').addEventListener('pointerdown',e=>{e.preventDefault();if(state==='play'){state='pause';msg(true,'PAUSA','','Pulsa Ⅱ para continuar.')}else if(state==='pause'){state='play';msg(false)}});
+
+function update(){
+ if(state!=='play')return;
+ p.y=ground();p.x+=joy.x*W*.012;p.x=Math.max(30,Math.min(W-100,p.x));if(p.inv>0)p.inv--;special=Math.min(100,special+.08);
+ spawn--;if(level<4&&spawn<=0){spawnEnemy();spawn=Math.max(20,55-level*8)}
+ if(score>=1200&&level===1){level=2;discs+=6}
+ if(score>=3000&&level===2){level=3;discs+=8}
+ if(score>=5200&&level===3){level=4;startBoss()}
+ for(const s of shots){s.x+=s.v;s.a+=.3}
+ for(const e of enemies){e.x-=e.v;
+  if(e.x<20)hit();
+  for(const s of shots)if(Math.hypot(s.x-e.x,s.y-(e.y-e.h/2))<35){e.hp--;s.x=W+999;burst(e.x,e.y,7);if(e.hp<=0){score+=e.fast?160:100;discs+=e.fast?2:1;}}
+  if(Math.abs(e.x-p.x)<45&&Math.abs(e.y-p.y)<65)hit();
+ }
+ enemies=enemies.filter(e=>e.x>-100&&e.hp>0);
+ if(boss){boss.x+=boss.v*boss.dir;if(boss.x>W*.88||boss.x<W*.63)boss.dir*=-1;if(Math.random()<.025)enemies.push({x:boss.x,y:boss.y+boss.h,v:W*.008,hp:1,fast:true});
+  for(const s of shots)if(Math.hypot(s.x-(boss.x+boss.w/2),s.y-(boss.y+boss.h/2))<80){boss.hp--;s.x=W+999;score+=20;burst(s.x,boss.y+70,2)}
+  if(boss.hp<=0){score+=5000;state='win';burst(boss.x+70,boss.y+70,70);msg(true,'¡MUNDO SALVADO!','','DJ Trance ha derrotado a DJ Reguetón.')}
+ }
+ for(const q of particles){q.x+=q.vx;q.y+=q.vy;q.vx*=.98;q.vy*=.98;q.life--}particles=particles.filter(q=>q.life>0);
+ $('score').textContent=String(score).padStart(6,'0');$('lives').textContent=lives;$('discs').textContent=discs;$('level').textContent=level;
+ $('bossbar').style.display=boss?'block':'none';$('bosslabel').textContent=boss?'DJ REGUETÓN':'';if(boss)$('bossfill').style.width=(100*boss.hp/boss.max)+'%';
+}
+function draw(){
+ let g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#17052e');g.addColorStop(1,'#050a22');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ // skyline
+ for(let i=0;i<Math.ceil(W/70)+2;i++){let x=i*70,h=70+(i*43)%180;ctx.fillStyle=i%2?'#172258':'#22265f';ctx.fillRect(x,ground()-h,60,h);for(let j=0;j<4;j++){ctx.fillStyle='#44dfff';ctx.fillRect(x+10+j*13,ground()-h+18,6,7)}}
+ ctx.fillStyle='#11142c';ctx.fillRect(0,ground(),W,H-ground());
+ // music waves
+ ctx.strokeStyle='#e13aff55';ctx.lineWidth=3;ctx.beginPath();for(let x=0;x<W;x+=8){let y=ground()-20-Math.sin(x*.045+performance.now()*.003)*8-Math.sin(x*.11)*5;ctx.lineTo(x,y)}ctx.stroke();
+ drawHero();for(const e of enemies)drawEnemy(e);for(const s of shots)drawDisc(s);if(boss)drawBoss();
+ for(const q of particles){ctx.globalAlpha=Math.max(0,q.life/50);ctx.fillStyle='#55e8ff';ctx.fillRect(q.x,q.y,q.r,q.r)}ctx.globalAlpha=1;
+}
+function drawHero(){if(p.inv%8<4)return;let x=p.x,y=p.y;ctx.save();ctx.translate(x,y);
+ ctx.fillStyle='#1d7cff';ctx.beginPath();ctx.moveTo(15,-55);ctx.lineTo(-28,10);ctx.lineTo(16,-2);ctx.closePath();ctx.fill();
+ ctx.fillStyle='#1977df';ctx.fillRect(0,-58,38,52);ctx.fillStyle='#f0bd8a';ctx.beginPath();ctx.arc(19,-74,15,0,7);ctx.fill();
+ ctx.fillStyle='#111';ctx.fillRect(2,-85,34,9);ctx.fillStyle='#55e7ff';ctx.fillRect(5,-90,28,5);
+ ctx.fillStyle='#fff';ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.fillText('TRANCE',19,-35);
+ ctx.fillStyle='#dbe8ff';ctx.fillRect(-8,-52,8,27);ctx.fillRect(38,-52,8,27);ctx.fillStyle='#222';ctx.fillRect(4,-7,12,7);ctx.fillRect(24,-7,12,7);ctx.restore()}
+function drawEnemy(e){ctx.save();ctx.translate(e.x,e.y);ctx.fillStyle=e.fast?'#a91672':'#43236e';ctx.fillRect(-24,-45,48,50);ctx.fillStyle='#111';ctx.fillRect(-26,-60,52,20);ctx.fillStyle='#fff';ctx.fillRect(-14,-52,7,4);ctx.fillRect(7,-52,7,4);ctx.fillStyle='#e7a66f';ctx.fillRect(-19,5,11,6);ctx.fillRect(8,5,11,6);ctx.restore()}
+function drawDisc(s){ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.a);ctx.fillStyle='#050505';ctx.beginPath();ctx.arc(0,0,s.r,0,7);ctx.fill();ctx.strokeStyle='#bbb';ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,4,0,7);ctx.fill();ctx.restore()}
+function drawBoss(){ctx.save();ctx.translate(boss.x,boss.y);ctx.fillStyle='#e2299c';ctx.fillRect(0,0,boss.w,boss.h);ctx.fillStyle='#111';ctx.fillRect(-8,-35,boss.w+16,50);ctx.fillStyle='#f0bb80';ctx.beginPath();ctx.arc(boss.w/2,-35,27,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 17px Arial';ctx.textAlign='center';ctx.fillText('REGUETÓN',boss.w/2,90);ctx.restore()}
+function loop(){update();draw();requestAnimationFrame(loop)}loop();
+</script>
+</body>
+</html>
