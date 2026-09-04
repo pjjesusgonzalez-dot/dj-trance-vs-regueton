@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070b20">
+<title>DJ Trance vs DJ Reguetón</title>
+<style>
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#050817}
+body{font-family:Arial,sans-serif;touch-action:none;user-select:none}
+#game{position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated}
+#menu{position:fixed;inset:0;background:linear-gradient(#07133bd9,#140521f2);display:flex;align-items:center;justify-content:center;z-index:20;text-align:center;padding:20px}
+.panel{max-width:680px;width:92%;padding:28px 18px;border:3px solid #47dcff;border-radius:20px;background:#07102fee;box-shadow:0 0 30px #118ccf}
+h1{font-size:clamp(32px,9vw,70px);margin:0;color:#55ddff;text-shadow:5px 5px #25309b}
+h2{font-size:clamp(18px,5vw,32px);color:#ff3b91;margin:4px 0 20px}
+p{color:#fff;line-height:1.45}
+#play{font-size:22px;font-weight:bold;padding:15px 34px;border-radius:14px;border:3px solid #7dffb2;background:#123c38;color:#fff;box-shadow:0 0 22px #28e58c}
+#play:active{transform:scale(.97)}
+#controls{position:fixed;inset:auto 0 0 0;padding:12px max(12px,env(safe-area-inset-left)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-right));display:flex;justify-content:space-between;z-index:10;pointer-events:none}
+.group{display:flex;gap:10px;pointer-events:auto}
+.btn{width:70px;height:70px;border-radius:18px;border:3px solid #fff8;background:#17346fcc;color:white;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:900;box-shadow:0 6px 0 #0008}
+.btn:active,.pressed{background:#2860b8;transform:translateY(4px);box-shadow:0 2px 0 #0008}
+#fire,#jump{width:82px;height:82px;border-radius:50%}
+#fire{background:#087caacc}#jump{background:#b31e70cc}
+#pause{position:fixed;right:12px;top:12px;z-index:11;width:48px;height:48px;border-radius:12px;border:2px solid #fff;background:#15265ddd;color:#fff;font-size:22px}
+#msg{position:fixed;inset:0;z-index:30;background:#000b;display:none;align-items:center;justify-content:center;text-align:center}
+#msg .box{background:#07102f;border:3px solid #55ddff;border-radius:18px;padding:25px;max-width:90%}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="menu">
+ <div class="panel">
+  <h1>DJ TRANCE</h1><h2>VS DJ REGUETÓN</h2>
+  <p>DJ Reguetón quiere cubrir el mundo con su señal. ¡Salta, corre y lanza vinilos para detenerlo!</p>
+  <p>CONTROLES: ← → mover · ↑ saltar · VINILO atacar</p>
+  <p>La música techno se genera dentro del juego. No necesita Internet.</p>
+  <button id="play">JUGAR</button>
+ </div>
+</div>
+
+<div id="controls">
+ <div class="group">
+  <button class="btn" id="left">◀</button>
+  <button class="btn" id="right">▶</button>
+ </div>
+ <div class="group">
+  <button class="btn" id="fire">●</button>
+  <button class="btn" id="jump">▲</button>
+ </div>
+</div>
+<button id="pause">Ⅱ</button>
+<div id="msg"><div class="box"><h2 id="msgTitle"></h2><p id="msgText"></p><button id="msgButton">CONTINUAR</button></div></div>
+
+<script>
+(function(){
+"use strict";
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+const VW=960,VH=540; let scale=1,ox=0,oy=0;
+function fit(){
+ const w=innerWidth,h=innerHeight; scale=Math.min(w/VW,h/VH);
+ canvas.width=VW;canvas.height=VH;canvas.style.width=(VW*scale)+"px";canvas.style.height=(VH*scale)+"px";
+ ox=(w-VW*scale)/2;oy=(h-VH*scale)/2;canvas.style.left=ox+"px";canvas.style.top=oy+"px";
+}
+addEventListener("resize",fit);fit();
+
+const input={l:false,r:false,j:false,f:false};
+function hold(id,key){
+ const b=document.getElementById(id);
+ const down=e=>{e.preventDefault();input[key]=true;b.classList.add("pressed")};
+ const up=e=>{e.preventDefault();input[key]=false;b.classList.remove("pressed")};
+ b.addEventListener("pointerdown",down,{passive:false});
+ b.addEventListener("pointerup",up,{passive:false});
+ b.addEventListener("pointercancel",up,{passive:false});
+ b.addEventListener("pointerleave",up,{passive:false});
+}
+hold("left","l");hold("right","r");hold("jump","j");hold("fire","f");
+addEventListener("keydown",e=>{
+ if(e.repeat && ["Space","ArrowUp","KeyW","KeyX"].includes(e.code))return;
+ if(e.code==="ArrowLeft"||e.code==="KeyA")input.l=true;
+ if(e.code==="ArrowRight"||e.code==="KeyD")input.r=true;
+ if(e.code==="ArrowUp"||e.code==="KeyW"||e.code==="Space")input.j=true;
+ if(e.code==="KeyX"||e.code==="KeyJ")input.f=true;
+ if(e.code==="Escape")pause();
+});
+addEventListener("keyup",e=>{
+ if(e.code==="ArrowLeft"||e.code==="KeyA")input.l=false;
+ if(e.code==="ArrowRight"||e.code==="KeyD")input.r=false;
+ if(e.code==="ArrowUp"||e.code==="KeyW"||e.code==="Space")input.j=false;
+ if(e.code==="KeyX"||e.code==="KeyJ")input.f=false;
+});
+
+let ac=null,music=false;
+function musicOn(){
+ if(music)return; const A=window.AudioContext||window.webkitAudioContext;if(!A)return;
+ ac=new A(); const master=ac.createGain();master.gain.value=.045;master.connect(ac.destination);
+ const bpm=130,dt=60/bpm/2, bass=[55,55,65.4,73.4,55,82.4,73.4,65.4], lead=[220,261.6,329.6,392,329.6,293.7,246.9,329.6];let n=0;
+ function beat(){
+  const t=ac.currentTime+.02;
+  let o=ac.createOscillator(),g=ac.createGain();o.type="square";o.frequency.value=bass[n%8];g.gain.setValueAtTime(.001,t);g.gain.exponentialRampToValueAtTime(.12,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+dt*.8);o.connect(g).connect(master);o.start(t);o.stop(t+dt);
+  if(n%2===0){let p=ac.createOscillator(),q=ac.createGain();p.type="sawtooth";p.frequency.value=lead[(n/2)%8|0];q.gain.setValueAtTime(.001,t);q.gain.linearRampToValueAtTime(.045,t+.02);q.gain.exponentialRampToValueAtTime(.001,t+dt*1.4);p.connect(q).connect(master);p.start(t);p.stop(t+dt*1.5)}
+  n++;setTimeout(beat,dt*1000);
+ }
+ ac.resume();beat();music=true;
+}
+
+const plats=[
+[0,455,850,85],[930,390,450,35],[1460,455,560,85],[2100,365,430,35],
+[2630,445,620,95],[3350,385,400,35],[3820,455,500,85],[4390,390,440,35],[4910,445,1090,95]
+];
+const enemyStart=[720,1080,1700,2250,2910,3480,4050,4580];
+let P, enemies, shots, gems, particles, boss, cam, score, over, win, paused, bossMode;
+
+function reset(){
+ P={x:80,y:380,w:36,h:56,vx:0,vy:0,hp:3,on:false,face:1,inv:0,shot:0};
+ enemies=enemyStart.map((x,i)=>({x,y:330+(i%2)*45,w:42,h:50,hp:i%3?2:3,dead:false,base:x}));
+ shots=[];gems=[];particles=[];cam=0;score=0;over=false;win=false;paused=false;bossMode=false;
+ for(let i=0;i<42;i++)gems.push({x:180+i*135,y:280-(i%4)*30,t:false});
+ boss={x:5750,y:330,w:76,h:105,hp:25,dead:false};
+}
+reset();
+
+function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function fx(x,y,n=7){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.8)*6,life:25})}
+function damage(){
+ if(P.inv)return;P.hp--;P.inv=80;P.vy=-6;fx(P.x,P.y,10);
+ if(P.hp<=0){over=true;showMsg("GAME OVER","DJ Reguetón ha ganado...","REINTENTAR")}
+}
+function shoot(){
+ if(P.shot>0)return;P.shot=16;shots.push({x:P.x+(P.face>0?P.w:0),y:P.y+25,vx:P.face*11,life:90});fx(P.x+P.w/2,P.y+25,3);
+}
+function pause(){
+ if(over||win)return;paused=!paused;
+ document.getElementById("msg").style.display=paused?"flex":"none";
+ document.getElementById("msgTitle").textContent="PAUSA";
+ document.getElementById("msgText").textContent="La batalla está congelada.";
+ document.getElementById("msgButton").textContent="CONTINUAR";
+}
+document.getElementById("pause").onclick=pause;
+function showMsg(t,txt,b){
+ document.getElementById("msgTitle").textContent=t;document.getElementById("msgText").textContent=txt;document.getElementById("msgButton").textContent=b;document.getElementById("msg").style.display="flex";
+}
+document.getElementById("msgButton").onclick=()=>{
+ if(over||win){reset();document.getElementById("msg").style.display="none"} else pause();
+};
+document.getElementById("play").onclick=()=>{document.getElementById("menu").style.display="none";musicOn();reset()};
+
+function update(){
+ if(paused||over||win)return;
+ if(P.shot>0)P.shot--;if(P.inv>0)P.inv--;
+ P.vx=(input.r?4.5:0)-(input.l?4.5:0);if(P.vx)P.face=P.vx>0?1:-1;
+ if(input.j&&P.on){P.vy=-12;P.on=false}
+ if(input.f)shoot();
+ P.vy+=.6;P.x+=P.vx;P.y+=P.vy;if(P.x<0)P.x=0;
+ P.on=false;
+ for(const p of plats)if(P.x+P.w>p[0]&&P.x<p[0]+p[2]&&P.y+P.h<=p[1]+18&&P.y+P.h+P.vy>=p[1]){P.y=p[1]-P.h;P.vy=0;P.on=true}
+ if(P.y>600){P.x=Math.max(0,P.x-250);P.y=250;P.vy=0;damage()}
+ for(const e of enemies)if(!e.dead){
+   e.x=e.base+Math.sin(Date.now()/500+e.base)*25;
+   if(hit(P,e))damage();
+ }
+ for(const s of shots){
+  s.x+=s.vx;s.life--;
+  for(const e of enemies)if(!e.dead&&s.x>e.x-15&&s.x<e.x+e.w+15&&s.y>e.y-15&&s.y<e.y+e.h+15){e.hp--;s.life=0;score+=100;fx(s.x,s.y);if(e.hp<=0){e.dead=true;score+=250}}
+  if(bossMode&&!boss.dead&&s.x>boss.x-15&&s.x<boss.x+boss.w+15&&s.y>boss.y-15&&s.y<boss.y+boss.h+15){boss.hp--;s.life=0;score+=100;fx(s.x,s.y,5);if(boss.hp<=0){boss.dead=true;score+=5000;win=true;showMsg("¡MUNDO SALVADO!","DJ Trance ha detenido la señal. Puntos: "+score,"JUGAR OTRA VEZ")}}
+ }
+ shots=shots.filter(s=>s.life>0);
+ for(const g of gems)if(!g.t&&Math.abs(P.x+18-g.x)<24&&Math.abs(P.y+28-g.y)<30){g.t=true;score+=50}
+ if(P.x>5350)bossMode=true;
+ if(bossMode&&!boss.dead){boss.y=315+Math.sin(Date.now()/250)*18;if(hit(P,boss))damage()}
+ for(const q of particles){q.x+=q.vx;q.y+=q.vy;q.vy+=.15;q.life--}particles=particles.filter(q=>q.life>0);
+ cam+=(P.x-350-cam)*.08;cam=Math.max(0,Math.min(5140,cam));
+}
+
+function bg(){
+ let g=ctx.createLinearGradient(0,0,0,VH);g.addColorStop(0,"#071844");g.addColorStop(1,"#17051f");ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);
+ for(let i=0;i<80;i++){ctx.fillStyle=i%6?"#43cfff":"#ff4c9b";ctx.fillRect((i*83)%VW,(i*47)%330,2,2)}
+ for(let x=0;x<VW;x+=42){let h=65+(x*31%155);ctx.fillStyle="#0b2450";ctx.fillRect(x,455-h,34,h);ctx.fillStyle="#ffd24a";for(let y=455-h+15;y<450;y+=22)ctx.fillRect(x+8,y,6,7)}
+}
+function player(){
+ let x=P.x,y=P.y;if(P.inv&&Math.floor(P.inv/5)%2===0)return;
+ ctx.fillStyle="#7c2cff";ctx.fillRect(x-12,y+12,15,39);
+ ctx.fillStyle="#159ee6";ctx.fillRect(x+4,y+17,28,31);
+ ctx.fillStyle="#0d3a92";ctx.fillRect(x+4,y+46,11,10);ctx.fillRect(x+22,y+46,10,10);
+ ctx.fillStyle="#ffd09d";ctx.fillRect(x+8,y+3,22,17);ctx.fillStyle="#10131d";ctx.fillRect(x+7,y,24,8);ctx.fillStyle="#a9f5ff";ctx.fillRect(x+10,y+8,19,5);
+ ctx.fillStyle="#fff";ctx.font="bold 8px monospace";ctx.fillText("T",x+17,y+37);
+}
+function enemy(e){let x=e.x,y=e.y;ctx.fillStyle="#121421";ctx.fillRect(x,y,e.w,e.h);ctx.fillStyle="#e92878";ctx.fillRect(x+5,y+5,32,11);ctx.fillStyle="#7430ad";ctx.fillRect(x+8,y+20,26,22);ctx.fillStyle="#ffd13a";ctx.fillRect(x+14,y+25,14,13)}
+function drawBoss(){let b=boss,x=b.x,y=b.y;ctx.fillStyle="#10111b";ctx.fillRect(x,y,b.w,b.h);ctx.fillStyle="#f32980";ctx.fillRect(x+6,y+5,64,17);ctx.fillStyle="#ffd09d";ctx.fillRect(x+18,y+22,40,28);ctx.fillStyle="#08090d";ctx.fillRect(x+14,y+18,48,11);ctx.fillStyle="#ffd13a";ctx.fillRect(x+26,y+52,25,8);ctx.fillStyle="#7131bd";ctx.fillRect(x+10,y+76,21,29);ctx.fillRect(x+45,y+76,21,29);ctx.fillStyle="#111";ctx.fillRect(x-8,y-18,92,7);ctx.fillStyle="#ff3d91";ctx.fillRect(x-6,y-16,88*Math.max(0,b.hp/25),3)}
+function drawShot(s){ctx.save();ctx.translate(s.x,s.y);ctx.rotate(Date.now()/90);ctx.fillStyle="#070b12";ctx.beginPath();ctx.arc(0,0,13,0,7);ctx.fill();ctx.fillStyle="#43d9ff";ctx.beginPath();ctx.arc(0,0,4,0,7);ctx.fill();ctx.restore()}
+function draw(){
+ ctx.clearRect(0,0,VW,VH);bg();ctx.save();ctx.translate(-cam,0);
+ for(const p of plats){ctx.fillStyle="#2c3455";ctx.fillRect(...p);ctx.fillStyle="#21d86c";ctx.fillRect(p[0],p[1],p[2],7)}
+ for(const g of gems)if(!g.t){ctx.fillStyle="#ffd32a";ctx.fillRect(g.x-6,g.y-10,12,20)}
+ for(const e of enemies)if(!e.dead)enemy(e);
+ if(bossMode&&!boss.dead)drawBoss();
+ for(const s of shots)drawShot(s);player();
+ for(const q of particles){ctx.fillStyle="#7eeaff";ctx.fillRect(q.x,q.y,5,5)}ctx.restore();
+ ctx.fillStyle="#05091ad9";ctx.fillRect(0,0,VW,54);
+ ctx.fillStyle="#55ddff";ctx.font="bold 18px monospace";ctx.fillText("DJ TRANCE",18,23);
+ ctx.fillStyle="#fff";ctx.font="bold 15px monospace";ctx.fillText("VIDA "+"♥".repeat(P.hp),18,44);
+ ctx.fillText("PUNTOS "+String(score).padStart(6,"0"),190,23);
+ ctx.fillText(bossMode?"JEFE: DJ REGUETÓN":"NIVEL 1 · CIUDAD TRANCE",470,23);
+ ctx.fillText("VINILOS: "+shots.length,190,44);
+}
+function loop(){update();draw();requestAnimationFrame(loop)}
+loop();
+})();
+</script>
+</body>
+</html>
